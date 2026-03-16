@@ -26,7 +26,6 @@ Python sample codes and documents about Autonomous vehicle control algorithm. Th
         * [Bidirectional A*](#bidirectional-a)
         * [Hybrid A*](#hybrid-a)
         * [Dijkstra](#dijkstra)
-        * [Elastic Bands](#elastic-bands)
         * [RRT](#rrt)
         * [Bidirectional RRT*](#bidirectional-rrt)
         * [RRT*](#rrt-star)
