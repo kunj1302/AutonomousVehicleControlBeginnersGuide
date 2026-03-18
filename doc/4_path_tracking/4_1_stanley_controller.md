@@ -289,5 +289,5 @@ def draw(self, axes, elems):
 
 This method is required by the visualizer interface - all objects registered with `GlobalXYVisualizer` must have a `draw` method. For the controller, no visual element needs to be drawn, so the body is left empty with `pass`.
 
-
+**Author**: Mohit Kumar
 
