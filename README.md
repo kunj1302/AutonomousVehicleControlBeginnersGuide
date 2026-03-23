@@ -131,6 +131,9 @@ Planning with dynamic obstacle replanning
 #### Dijkstra
 Planning(Reduce frames by sampling every nth node to prevent memory exhaustion)  
 ![](src/simulations/path_planning/dijkstra_path_planning/dijkstra_search.gif)  
+#### Elastic Bands
+A* seed path smoothed with Elastic Bands optimisation  
+![](src/simulations/path_planning/elastic_bands_path_planning/elastic_bands_search.gif)  
 #### RRT
 Planning  
 ![](src/simulations/path_planning/rrt_path_planning/rrt_search.gif)  
