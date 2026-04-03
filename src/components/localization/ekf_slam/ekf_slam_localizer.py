@@ -13,10 +13,12 @@ import numpy as np
 from math import sqrt, pi
 
 sys.path.append(str(Path(__file__).absolute().parent) + "/../../state")
+sys.path.append(str(Path(__file__).absolute().parent.parent.parent) + "/landmark")
 from state import State
+from landmark import Landmark
 
 from motion_model import jacobian_F, jacobian_G
-from observation_model import observe_landmark, build_H_matrix
+from observation_model import build_H_matrix
 from data_association import nearest_neighbor_association, POTENTIAL_DUPLICATE
 from landmark_manager import augment_state, initialize_landmark_from_observation
 
@@ -80,7 +82,7 @@ class EKFSLAMLocalizer:
         for j in range(num_landmarks):
             lx = self.mu[4 + 2 * j, 0]
             ly = self.mu[4 + 2 * j + 1, 0]
-            z_pred = observe_landmark(self.mu[0:3], lx, ly)
+            z_pred = Landmark.predicted_range_bearing_at(self.mu[0:3], lx, ly)
             pred_obs_list.append(z_pred)
             H = build_H_matrix(self.mu[0:3], lx, ly, j, n)
             S = H @ self.Sigma @ H.T + self.R_obs
@@ -100,7 +102,7 @@ class EKFSLAMLocalizer:
                 j = land_id
                 lx = self.mu[4 + 2 * j, 0]
                 ly = self.mu[4 + 2 * j + 1, 0]
-                z_pred = observe_landmark(self.mu[0:3], lx, ly)
+                z_pred = Landmark.predicted_range_bearing_at(self.mu[0:3], lx, ly)
                 if z_pred[0, 0] < 0.5:
                     continue
                 H = build_H_matrix(self.mu[0:3], lx, ly, j, n)

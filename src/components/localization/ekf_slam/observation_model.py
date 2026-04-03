@@ -1,30 +1,14 @@
 """
 observation_model.py
 
-Range-bearing observation model and Jacobians for EKF-SLAM.
+EKF linearization only: Jacobians for range–bearing measurements.
+Noise-free measurement prediction lives on Landmark; noisy simulation on LandmarkRangeBearingSensor.
+
 Measurement: range r, bearing phi (relative to robot yaw).
 """
 
 import numpy as np
-from math import atan2, sqrt
-
-
-def observe_landmark(robot_state, lx, ly):
-    """
-    Predicted range and bearing from robot to landmark.
-    robot_state: (3, 1) [x, y, yaw]
-    lx, ly: landmark position (scalars)
-    Returns: (2, 1) [range, bearing]
-    """
-    x, y, yaw = robot_state[0, 0], robot_state[1, 0], robot_state[2, 0]
-    dx = lx - x
-    dy = ly - y
-    r = sqrt(dx * dx + dy * dy)
-    if r < 1e-9:
-        return np.array([[0.0], [0.0]])
-    global_bearing = atan2(dy, dx)
-    bearing = (global_bearing - yaw + np.pi) % (2 * np.pi) - np.pi
-    return np.array([[r], [bearing]])
+from math import sqrt
 
 
 def jacobian_H(robot_state, lx, ly, landmark_index):
@@ -39,7 +23,6 @@ def jacobian_H(robot_state, lx, ly, landmark_index):
     dy = ly - y
     r_sq = dx * dx + dy * dy
     r = sqrt(r_sq)
-    # Clamp r for Jacobian to avoid huge bearing derivatives when landmark very close
     r_min_jacobian = 0.3
     if r < r_min_jacobian:
         r = r_min_jacobian
@@ -47,7 +30,6 @@ def jacobian_H(robot_state, lx, ly, landmark_index):
     elif r < 1e-9:
         r = 1e-9
         r_sq = 1e-18
-    # dr/dx, dr/dy, dr/dyaw, dr/dlx, dr/dly
     dr_dx = -dx / r
     dr_dy = -dy / r
     dphi_dx = dy / r_sq
@@ -57,8 +39,6 @@ def jacobian_H(robot_state, lx, ly, landmark_index):
     dr_dly = dy / r
     dphi_dlx = -dy / r_sq
     dphi_dly = dx / r_sq
-    # We need to return H with full state dimension; caller will pass state_dim
-    # So we don't know state_dim here. Return partial blocks and let caller build H.
     H_robot = np.array([[dr_dx, dr_dy, 0],
                         [dphi_dx, dphi_dy, dphi_dyaw]])
     H_landmark = np.array([[dr_dlx, dr_dly],
@@ -77,16 +57,3 @@ def build_H_matrix(robot_state, lx, ly, landmark_index, state_dim):
     H[:, 3] = 0.0
     H[:, 4 + 2 * j:4 + 2 * j + 2] = H_landmark
     return H
-
-
-def simulate_observation(robot_state, lx, ly, sigma_r, sigma_phi):
-    """
-    Simulate noisy range-bearing measurement.
-    robot_state: (3, 1), lx, ly: landmark position
-    sigma_r: range noise std, sigma_phi: bearing noise std [rad]
-    Returns: (2, 1) noisy [range, bearing]
-    """
-    z = observe_landmark(robot_state, lx, ly)
-    z[0, 0] = max(0.0, z[0, 0] + sigma_r * np.random.randn())
-    z[1, 0] = (z[1, 0] + sigma_phi * np.random.randn() + np.pi) % (2 * np.pi) - np.pi
-    return z

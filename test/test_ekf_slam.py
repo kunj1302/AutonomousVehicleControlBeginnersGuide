@@ -7,14 +7,16 @@ Author: Contribution following HOWTOCONTRIBUTE.md
 from pathlib import Path
 import sys
 import numpy as np
-import pytest
 
 ekf_slam_path = str(Path(__file__).absolute().parent) + "/../src/simulations/localization/ekf_slam"
 sys.path.append(ekf_slam_path)
 import ekf_slam
 from state import State
 from motion_model import jacobian_F, jacobian_G
-from observation_model import observe_landmark, build_H_matrix
+from observation_model import build_H_matrix
+
+sys.path.append(str(Path(__file__).absolute().parent) + "/../src/components/landmark")
+from landmark import Landmark
 from data_association import mahalanobis_distance, nearest_neighbor_association
 from landmark_manager import initialize_landmark_from_observation, augment_state
 
@@ -43,9 +45,9 @@ def test_motion_model_jacobians():
     assert np.isfinite(F).all() and np.isfinite(G).all()
 
 
-def test_observation_model():
+def test_landmark_predicted_range_bearing():
     robot = np.array([[0.0], [0.0], [0.0]])
-    z = observe_landmark(robot, 3.0, 4.0)
+    z = Landmark.predicted_range_bearing_at(robot, 3.0, 4.0)
     assert z.shape == (2, 1)
     assert abs(z[0, 0] - 5.0) < 1e-6
     assert abs(z[1, 0] - np.arctan2(4, 3)) < 1e-6
