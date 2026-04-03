@@ -30,9 +30,9 @@ def observe_landmark(robot_state, lx, ly):
 def jacobian_H(robot_state, lx, ly, landmark_index):
     """
     Jacobian of observation [range, bearing] w.r.t. state vector.
-    State vector is [x, y, yaw, l1_x, l1_y, l2_x, l2_y, ...].
-    landmark_index: 0-based index of this landmark (so its state indices are 3+2*j, 3+2*j+1).
-    Returns: (2, state_dim) Jacobian H for this landmark (state_dim = 3 + 2*num_landmarks).
+    State vector is [x, y, yaw, speed, l1_x, l1_y, l2_x, l2_y, ...].
+    landmark_index: 0-based index of this landmark (state indices 4+2*j, 4+2*j+1).
+    Returns partial blocks; build_H_matrix adds zero columns for speed and places landmark block.
     """
     x, y, yaw = robot_state[0, 0], robot_state[1, 0], robot_state[2, 0]
     dx = lx - x
@@ -69,11 +69,13 @@ def jacobian_H(robot_state, lx, ly, landmark_index):
 def build_H_matrix(robot_state, lx, ly, landmark_index, state_dim):
     """
     Build full (2, state_dim) Jacobian H for one landmark.
+    Robot block is 4 columns: (x, y, yaw, speed); range/bearing do not depend on speed.
     """
     H_robot, H_landmark, j = jacobian_H(robot_state, lx, ly, landmark_index)
     H = np.zeros((2, state_dim))
     H[:, 0:3] = H_robot
-    H[:, 3 + 2 * j:3 + 2 * j + 2] = H_landmark
+    H[:, 3] = 0.0
+    H[:, 4 + 2 * j:4 + 2 * j + 2] = H_landmark
     return H
 
 

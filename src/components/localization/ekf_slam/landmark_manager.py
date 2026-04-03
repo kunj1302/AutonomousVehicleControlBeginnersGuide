@@ -13,7 +13,7 @@ def initialize_landmark_from_observation(robot_state, z, G_robot, G_landmark):
     Compute landmark position (lx, ly) from range-bearing observation and robot pose.
     robot_state: (3, 1) [x, y, yaw]
     z: (2, 1) [range, bearing]
-    G_robot: (2, 3) Jacobian of [lx, ly] w.r.t. robot state (for covariance)
+    G_robot: (2, 4) Jacobian of [lx, ly] w.r.t. [x, y, yaw, speed] (speed column is zero)
     G_landmark: (2, 2) Jacobian of [lx, ly] w.r.t. [r, phi]
     Returns: (2, 1) landmark position, and G_robot, G_landmark for covariance update.
     """
@@ -23,8 +23,8 @@ def initialize_landmark_from_observation(robot_state, z, G_robot, G_landmark):
     ly = y + r * sin(yaw + phi)
     # Jacobian of (lx, ly) w.r.t. (x, y, yaw): dlx/dx=1, dlx/dy=0, dlx/dyaw=-r*sin(yaw+phi)
     G_robot = np.array([
-        [1, 0, -r * sin(yaw + phi)],
-        [0, 1, r * cos(yaw + phi)]
+        [1, 0, -r * sin(yaw + phi), 0],
+        [0, 1, r * cos(yaw + phi), 0]
     ])
     G_landmark = np.array([
         [cos(yaw + phi), -r * sin(yaw + phi)],
@@ -36,19 +36,17 @@ def initialize_landmark_from_observation(robot_state, z, G_robot, G_landmark):
 def augment_state(mu, Sigma, z, robot_state, R_obs):
     """
     Augment state vector and covariance with a new landmark from observation z.
-    mu: (n, 1) state vector [x, y, yaw, l1_x, l1_y, ...]
+    mu: (n, 1) state vector [x, y, yaw, speed, l1_x, l1_y, ...]
     Sigma: (n, n) covariance
     z: (2, 1) [range, bearing]
-    robot_state: (3, 1) current robot pose from mu
+    robot_state: (3, 1) current robot pose (x, y, yaw) from mu
     R_obs: (2, 2) observation noise covariance
     Returns: mu_new (n+2, 1), Sigma_new (n+2, n+2)
     """
     lm, G_robot, G_landmark = initialize_landmark_from_observation(robot_state, z, None, None)
     n = mu.shape[0]
-    # Cross covariance: Sigma_xy = Sigma[0:3, :] for robot; we need Sigma_robot_rest
-    Sigma_rr = Sigma[0:3, 0:3]
-    Sigma_xr = Sigma[:, 0:3]  # (n, 3)
-    Sigma_rx = Sigma[0:3, :]  # (3, n)
+    Sigma_rr = Sigma[0:4, 0:4]
+    Sigma_xr = Sigma[:, 0:4]
     # New landmark covariance and cross terms
     sigma_new_lm = Sigma_xr @ G_robot.T  # (n, 2)
     sigma_new_lm_T = sigma_new_lm.T       # (2, n)

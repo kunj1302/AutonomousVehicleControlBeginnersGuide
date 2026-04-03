@@ -1,80 +1,60 @@
 """
 motion_model.py
 
-Velocity motion model and Jacobians for EKF-SLAM prediction step.
-Robot state: [x, y, yaw]. Control input: [v, omega].
+Jacobians for EKF-SLAM prediction step. Mean propagation uses State.motion_model
+(see state.py): robot state [x, y, yaw, speed], control [accel, yaw_rate].
 """
 
-import numpy as np
 from math import cos, sin
 
-
-def predict_robot_state(robot_state, control, dt):
-    """
-    Predict next robot pose using velocity motion model.
-    robot_state: (3, 1) array [x, y, yaw]
-    control: (2, 1) array [v, omega]
-    dt: time step [s]
-    Returns: (3, 1) predicted state
-    """
-    x, y, yaw = robot_state[0, 0], robot_state[1, 0], robot_state[2, 0]
-    v, omega = control[0, 0], control[1, 0]
-    yaw_new = yaw + omega * dt
-    # avoid singularities when omega is near zero
-    if abs(omega) < 1e-6:
-        x_new = x + v * cos(yaw) * dt
-        y_new = y + v * sin(yaw) * dt
-    else:
-        x_new = x + (v / omega) * (sin(yaw_new) - sin(yaw))
-        y_new = y + (v / omega) * (-cos(yaw_new) + cos(yaw))
-    return np.array([[x_new], [y_new], [yaw_new]])
+import numpy as np
 
 
-def jacobian_F(robot_state, control, dt):
+def jacobian_F(pred_state, control, time_s):
     """
-    Jacobian of motion model w.r.t. robot state [x, y, yaw].
-    robot_state: (3, 1), control: (2, 1), dt: float
-    Returns: (3, 3) Jacobian F
+    Jacobian of State.motion_model w.r.t. state [x, y, yaw, speed].
+    pred_state: (4, 1) predicted state after State.motion_model
+    control: (2, 1) [accel_mps2, yaw_rate_rps]
+    time_s: time step [s]
+    Returns: (4, 4) Jacobian F (matches ExtendedKalmanFilterLocalizer._jacobian_F)
     """
-    yaw = robot_state[2, 0]
-    v, omega = control[0, 0], control[1, 0]
-    if abs(omega) < 1e-6:
-        dx_dyaw = -v * sin(yaw) * dt
-        dy_dyaw = v * cos(yaw) * dt
-    else:
-        yaw_new = yaw + omega * dt
-        dx_dyaw = (v / omega) * (cos(yaw_new) - cos(yaw))
-        dy_dyaw = (v / omega) * (sin(yaw_new) - sin(yaw))
-    F = np.array([
-        [1, 0, dx_dyaw],
-        [0, 1, dy_dyaw],
-        [0, 0, 1]
-    ])
-    return F
+    yaw = pred_state[2, 0]
+    spd = pred_state[3, 0]
+    acl = control[0, 0]
+    t = time_s
+
+    sin_yaw = sin(yaw)
+    cos_yaw = cos(yaw)
+
+    jF = np.array(
+        [
+            [1, 0, -spd * sin_yaw * t - acl * sin_yaw * t**2 / 2, cos_yaw * t],
+            [0, 1, spd * cos_yaw * t + acl * cos_yaw * t**2 / 2, sin_yaw * t],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1],
+        ]
+    )
+
+    return jF
 
 
-def jacobian_G(robot_state, control, dt):
+def jacobian_G(pred_state, time_s):
     """
-    Jacobian of motion model w.r.t. control [v, omega].
-    robot_state: (3, 1), control: (2, 1), dt: float
-    Returns: (3, 2) Jacobian G
+    Jacobian of State.motion_model w.r.t. control [accel, yaw_rate].
+    pred_state: (4, 1) predicted state
+    time_s: time step [s]
+    Returns: (4, 2) Jacobian G (matches ExtendedKalmanFilterLocalizer._jacobian_G)
     """
-    yaw = robot_state[2, 0]
-    v, omega = control[0, 0], control[1, 0]
-    if abs(omega) < 1e-6:
-        dx_dv = cos(yaw) * dt
-        dy_dv = sin(yaw) * dt
-        dx_domega = 0.0
-        dy_domega = 0.0
-    else:
-        yaw_new = yaw + omega * dt
-        dx_dv = (sin(yaw_new) - sin(yaw)) / omega
-        dy_dv = (-cos(yaw_new) + cos(yaw)) / omega
-        dx_domega = (v / (omega ** 2)) * (sin(yaw) - sin(yaw_new) + omega * cos(yaw_new) * dt)
-        dy_domega = (v / (omega ** 2)) * (cos(yaw_new) - cos(yaw) + omega * sin(yaw_new) * dt)
-    G = np.array([
-        [dx_dv, dx_domega],
-        [dy_dv, dy_domega],
-        [0, dt]
-    ])
-    return G
+    yaw = pred_state[2, 0]
+    t = time_s
+
+    jG = np.array(
+        [
+            [cos(yaw) * t**2 / 2, 0],
+            [sin(yaw) * t**2 / 2, 0],
+            [0, t],
+            [t, 0],
+        ]
+    )
+
+    return jG

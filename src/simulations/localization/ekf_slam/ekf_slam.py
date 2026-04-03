@@ -28,7 +28,6 @@ from vehicle_specification import VehicleSpecification
 from state import State
 from four_wheels_vehicle import FourWheelsVehicle
 from ekf_slam_localizer import EKFSLAMLocalizer
-from motion_model import predict_robot_state
 from observation_model import observe_landmark, simulate_observation
 
 show_plot = True
@@ -71,20 +70,23 @@ class EKFSLAMSimulation:
         self.radius = radius
         self.speed = speed
         self.Q_input = np.diag([sigma_v ** 2, sigma_omega ** 2])
-        self.true_robot = np.array([[center_x + radius], [center_y], [-pi / 2]])
+        self.true_robot = np.array(
+            [[center_x + radius], [center_y], [-pi / 2], [speed]]
+        )
         self.true_trajectory_x = [float(self.true_robot[0, 0])]
         self.true_trajectory_y = [float(self.true_robot[1, 0])]
 
     def _control(self):
-        """Circular path: v constant, omega constant (negative = clockwise)."""
-        return np.array([[self.speed], [-self.speed / self.radius]])
+        """Circular path at constant speed: accel 0, yaw_rate = -v/r (clockwise)."""
+        omega = -self.speed / self.radius
+        return np.array([[0.0], [omega]])
 
     def update(self, dt):
         u = self._control()
 
-        # True motion with process noise
+        # True motion with process noise on [accel, yaw_rate]
         u_noisy = u + np.sqrt(self.Q_input) @ np.random.randn(2, 1)
-        self.true_robot = predict_robot_state(self.true_robot, u_noisy, dt)
+        self.true_robot = State.motion_model(self.true_robot, u_noisy, dt)
         self.true_trajectory_x.append(float(self.true_robot[0, 0]))
         self.true_trajectory_y.append(float(self.true_robot[1, 0]))
 
@@ -95,7 +97,7 @@ class EKFSLAMSimulation:
                     [self.true_robot[0, 0]],
                     [self.true_robot[1, 0]],
                     [self.true_robot[2, 0]],
-                    [self.speed],
+                    [self.true_robot[3, 0]],
                 ])
             )
 
@@ -118,7 +120,7 @@ class EKFSLAMSimulation:
         # Push estimated pose into vehicle's State for drawing
         rs = self.localizer.get_robot_state()
         self.est_state.update_by_localizer(
-            np.array([[rs[0, 0]], [rs[1, 0]], [rs[2, 0]], [self.speed]])
+            np.array([[rs[0, 0]], [rs[1, 0]], [rs[2, 0]], [rs[3, 0]]])
         )
 
     def draw(self, axes, elems):
@@ -251,6 +253,7 @@ def main():
         init_x=center_x + radius_lm,
         init_y=center_y,
         init_yaw=-pi / 2,
+        init_speed_mps=speed,
         sigma_r=SIGMA_R,
         sigma_phi=SIGMA_PHI,
         sigma_v=SIGMA_V,
